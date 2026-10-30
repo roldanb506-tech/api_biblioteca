@@ -1,0 +1,435 @@
+openapi: 3.0.0
+info:
+  title: API Biblioteca
+  description: API REST para gestionar libros, autores y préstamos, con autenticación JWT.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000
+    description: Servidor local
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Autor:
+      type: object
+      properties:
+        id_autor:
+          type: integer
+          example: 1
+        nombre_autor:
+          type: string
+          example: Gabriel García Márquez
+        nacionalidad:
+          type: string
+          example: Colombiana
+    AutorEntrada:
+      type: object
+      required: [nombre_autor, nacionalidad]
+      properties:
+        nombre_autor:
+          type: string
+          example: Gabriel García Márquez
+        nacionalidad:
+          type: string
+          example: Colombiana
+    Libro:
+      type: object
+      properties:
+        id_libro:
+          type: integer
+          example: 1
+        titulo_libro:
+          type: string
+          example: Cien años de soledad
+        ano_publicacion:
+          type: integer
+          example: 1967
+        autor_id:
+          type: integer
+          example: 1
+        disponible:
+          type: boolean
+          example: true
+    LibroEntrada:
+      type: object
+      required: [titulo_libro, autor_id]
+      properties:
+        titulo_libro:
+          type: string
+          example: Cien años de soledad
+        autor_id:
+          type: integer
+          minimum: 1
+          example: 1
+        ano_publicacion:
+          type: integer
+          example: 1967
+    Error:
+      type: object
+      properties:
+        mensaje:
+          type: string
+          example: Recurso no encontrado
+    ErrorValidacion:
+      type: object
+      properties:
+        errores:
+          type: array
+          items:
+            type: object
+            properties:
+              msg:
+                type: string
+                example: El nombre es obligatorio
+              path:
+                type: string
+                example: nombre_autor
+              location:
+                type: string
+                example: body
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      description: Identificador del recurso
+  responses:
+    NoAutenticado:
+      description: Falta el token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            mensaje: "Acceso denegado: falta el token"
+    TokenInvalido:
+      description: Token inválido o expirado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            mensaje: "Token inválido o expirado"
+    DatosInvalidos:
+      description: Datos faltantes o inválidos
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorValidacion'
+    NoEncontrado:
+      description: Recurso no existente
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            mensaje: "Recurso no encontrado"
+
+tags:
+  - name: Autenticación
+  - name: Libros
+  - name: Autores
+  - name: Préstamos
+
+paths:
+  /api/registro:
+    post:
+      tags: [Autenticación]
+      summary: Registrar un usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nombre, correo, clave]
+              properties:
+                nombre:
+                  type: string
+                  example: Amor
+                correo:
+                  type: string
+                  example: amor@correo.com
+                clave:
+                  type: string
+                  minLength: 6
+                  example: "123456"
+      responses:
+        '201':
+          description: Usuario registrado
+          content:
+            application/json:
+              example:
+                id: 1
+                mensaje: Usuario registrado
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          description: El correo ya está registrado
+          content:
+            application/json:
+              example:
+                mensaje: El registro ya existe
+
+  /api/login:
+    post:
+      tags: [Autenticación]
+      summary: Iniciar sesión y obtener un token JWT
+      description: El token expira en 2 horas. Envíalo en el encabezado `Authorization Bearer <token>`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [correo, clave]
+              properties:
+                correo:
+                  type: string
+                  example: amor@correo.com
+                clave:
+                  type: string
+                  example: "123456"
+      responses:
+        '200':
+          description: Login correcto
+          content:
+            application/json:
+              example:
+                token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          description: Correo o clave incorrectos
+          content:
+            application/json:
+              example:
+                mensaje: Correo o clave incorrectos
+
+  /api/libros:
+    get:
+      tags: [Libros]
+      summary: Listar todos los libros
+      responses:
+        '200':
+          description: Lista de libros
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Libro'
+    post:
+      tags: [Libros]
+      summary: Crear un libro
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LibroEntrada'
+      responses:
+        '201':
+          description: Libro creado
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+
+  /api/libros/{id}:
+    get:
+      tags: [Libros]
+      summary: Obtener un libro por id
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Libro encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Libro'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+    put:
+      tags: [Libros]
+      summary: Actualizar un libro
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LibroEntrada'
+      responses:
+        '200':
+          description: Libro actualizado
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /api/autores:
+    get:
+      tags: [Autores]
+      summary: Listar todos los autores
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de autores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Autor'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/TokenInvalido'
+    post:
+      tags: [Autores]
+      summary: Crear un autor
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutorEntrada'
+      responses:
+        '201':
+          description: Autor creado
+          content:
+            application/json:
+              example:
+                id_autor: 5
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/TokenInvalido'
+        '409':
+          description: El autor ya existe
+          content:
+            application/json:
+              example:
+                mensaje: El registro ya existe
+
+  /api/autores/{id}:
+    get:
+      tags: [Autores]
+      summary: Obtener un autor por id
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Autor encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Autor'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/TokenInvalido'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+    put:
+      tags: [Autores]
+      summary: Actualizar un autor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutorEntrada'
+      responses:
+        '200':
+          description: Autor actualizado
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/TokenInvalido'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+    delete:
+      tags: [Autores]
+      summary: Eliminar un autor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Autor eliminado
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/TokenInvalido'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /api/autores/nacionalidad/{nacionalidad}:
+    get:
+      tags: [Autores]
+      summary: Listar autores por nacionalidad
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: nacionalidad
+          in: path
+          required: true
+          schema:
+            type: string
+          example: Colombiana
+      responses:
+        '200':
+          description: Autores de esa nacionalidad
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Autor'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/TokenInvalido'
+
+  /api/prestamos/devolver/{id}:
+    put:
+      tags: [Préstamos]
+      summary: Registrar la devolución de un préstamo
+      description: Marca el préstamo como devuelto y deja el libro disponible (usa una transacción).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Préstamo devuelto
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/TokenInvalido'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
